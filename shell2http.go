@@ -110,6 +110,7 @@ type Config struct {
 	oneThread     bool   // run each shell commands in one thread
 	showErrors    bool   // returns the standard output even if the command exits with a non-zero exit code
 	includeStderr bool   // also returns output written to stderr (default is stdout only)
+	logOutput     bool
 }
 
 // readableURL - get readable URL for logging
@@ -173,6 +174,7 @@ func getConfig() (cmdHandlers []Command, appConfig Config, err error) {
 	flag.StringVar(&appConfig.key, "key", "", "SSL private key path")
 	flag.StringVar(&basicAuth, "basic-auth", "", "setup HTTP Basic Authentication (\"user_name:password\")")
 	flag.IntVar(&appConfig.timeout, "timeout", 0, "set timeout for execute shell command (in seconds)")
+	flag.BoolVar(&appConfig.logOutput, "logOutput", false, "log command output")
 
 	flag.Usage = func() {
 		fmt.Printf("usage: %s [options] /path \"shell command\" /path2 \"shell command2\"\n", os.Args[0])
@@ -291,10 +293,17 @@ func getShellHandler(appConfig Config, shell string, params []string, cacheTTL r
 
 		rw.Header().Set("X-Shell2http-Exit-Code", fmt.Sprintf("%d", getExitCode(err)))
 
+		outText := string(shellOut)
+		if appConfig.logOutput {
+			lines := strings.SplitN(strings.TrimRight(outText, "\n"), "\n", -1)
+			for _, element := range lines {
+				log.Printf("cmd output: %s", element)
+			}
+		}
+
 		if err != nil && !appConfig.showErrors {
 			responseWrite(rw, "exec error: "+err.Error())
 		} else {
-			outText := string(shellOut)
 			if appConfig.setCGI {
 				var headers map[string]string
 				outText, headers = parseCGIHeaders(outText)
